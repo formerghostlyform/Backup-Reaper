@@ -131,6 +131,26 @@ function Get-DailyTimeString {
     return $TimeValue.ToString('HH:mm')
 }
 
+function Test-DailyTimeString {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TimeText
+    )
+
+    try {
+        [void][datetime]::ParseExact(
+            $TimeText,
+            'HH:mm',
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::None
+        )
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
 function Get-LastNonEmptyLine {
     param(
         [string]$Text
@@ -285,8 +305,8 @@ function Get-FormConfigValues {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Backup-Reaper Config Editor'
 $form.StartPosition = 'CenterScreen'
-$form.Size = New-Object System.Drawing.Size(860, 790)
-$form.MinimumSize = New-Object System.Drawing.Size(760, 720)
+$form.Size = New-Object System.Drawing.Size(860, 860)
+$form.MinimumSize = New-Object System.Drawing.Size(760, 800)
 
 $lblCurrentFile = New-Object System.Windows.Forms.Label
 $lblCurrentFile.AutoSize = $true
@@ -387,7 +407,7 @@ $groupPaths.Controls.Add($txtBackupRoots)
 $groupOptions = New-Object System.Windows.Forms.GroupBox
 $groupOptions.Text = 'Options'
 $groupOptions.Location = New-Object System.Drawing.Point(16, 424)
-$groupOptions.Size = New-Object System.Drawing.Size(812, 178)
+$groupOptions.Size = New-Object System.Drawing.Size(812, 134)
 $groupOptions.Anchor = 'Top,Left,Right'
 $form.Controls.Add($groupOptions)
 
@@ -449,71 +469,91 @@ $groupOptions.Controls.Add($btnBrowseLog)
 
 $groupTask = New-Object System.Windows.Forms.GroupBox
 $groupTask.Text = 'Scheduled Task'
-$groupTask.Location = New-Object System.Drawing.Point(16, 610)
-$groupTask.Size = New-Object System.Drawing.Size(812, 120)
+$groupTask.Location = New-Object System.Drawing.Point(16, 566)
+$groupTask.Size = New-Object System.Drawing.Size(812, 160)
 $groupTask.Anchor = 'Left,Right,Bottom'
 $form.Controls.Add($groupTask)
 
 $lblTaskName = New-Object System.Windows.Forms.Label
 $lblTaskName.Text = 'Task name'
 $lblTaskName.AutoSize = $true
-$lblTaskName.Location = New-Object System.Drawing.Point(19, 29)
+$lblTaskName.Location = New-Object System.Drawing.Point(19, 24)
 $groupTask.Controls.Add($lblTaskName)
 
 $txtTaskName = New-Object System.Windows.Forms.TextBox
-$txtTaskName.Location = New-Object System.Drawing.Point(19, 49)
+$txtTaskName.Location = New-Object System.Drawing.Point(19, 52)
 $txtTaskName.Size = New-Object System.Drawing.Size(290, 25)
 $txtTaskName.Text = 'Reaper Backup Sync'
 $groupTask.Controls.Add($txtTaskName)
 
 $lblTaskTime = New-Object System.Windows.Forms.Label
-$lblTaskTime.Text = 'Daily at'
+$lblTaskTime.Text = 'Configured daily times (HH:mm)'
 $lblTaskTime.AutoSize = $true
-$lblTaskTime.Location = New-Object System.Drawing.Point(329, 29)
+$lblTaskTime.Location = New-Object System.Drawing.Point(329, 24)
 $groupTask.Controls.Add($lblTaskTime)
+
+$lstTaskTimes = New-Object System.Windows.Forms.ListBox
+$lstTaskTimes.Location = New-Object System.Drawing.Point(329, 52)
+$lstTaskTimes.Size = New-Object System.Drawing.Size(202, 100)
+$lstTaskTimes.IntegralHeight = $false
+$lstTaskTimes.SelectionMode = [System.Windows.Forms.SelectionMode]::MultiExtended
+[void]$lstTaskTimes.Items.Add('02:00')
+$groupTask.Controls.Add($lstTaskTimes)
 
 $dtTaskTime = New-Object System.Windows.Forms.DateTimePicker
 $dtTaskTime.Format = [System.Windows.Forms.DateTimePickerFormat]::Time
 $dtTaskTime.ShowUpDown = $true
 $dtTaskTime.Width = 110
-$dtTaskTime.Location = New-Object System.Drawing.Point(329, 49)
+$dtTaskTime.Location = New-Object System.Drawing.Point(544, 52)
 $dtTaskTime.Value = [datetime]::Today.AddHours(2)
 $groupTask.Controls.Add($dtTaskTime)
+
+$btnTaskAddTime = New-Object System.Windows.Forms.Button
+$btnTaskAddTime.Text = 'Add Time'
+$btnTaskAddTime.Size = New-Object System.Drawing.Size(85, 27)
+$btnTaskAddTime.Location = New-Object System.Drawing.Point(660, 51)
+$groupTask.Controls.Add($btnTaskAddTime)
+
+$btnTaskRemoveTime = New-Object System.Windows.Forms.Button
+$btnTaskRemoveTime.Text = 'Remove Selected Time'
+$btnTaskRemoveTime.Size = New-Object System.Drawing.Size(145, 27)
+$btnTaskRemoveTime.Location = New-Object System.Drawing.Point(544, 84)
+$groupTask.Controls.Add($btnTaskRemoveTime)
 
 $btnTaskCreateUpdate = New-Object System.Windows.Forms.Button
 $btnTaskCreateUpdate.Text = 'Create / Update Task'
 $btnTaskCreateUpdate.Size = New-Object System.Drawing.Size(145, 30)
-$btnTaskCreateUpdate.Location = New-Object System.Drawing.Point(468, 45)
+$btnTaskCreateUpdate.Location = New-Object System.Drawing.Point(544, 112)
 $groupTask.Controls.Add($btnTaskCreateUpdate)
 
 $btnTaskStatus = New-Object System.Windows.Forms.Button
 $btnTaskStatus.Text = 'Task Status'
 $btnTaskStatus.Size = New-Object System.Drawing.Size(90, 30)
-$btnTaskStatus.Location = New-Object System.Drawing.Point(620, 45)
+$btnTaskStatus.Location = New-Object System.Drawing.Point(694, 112)
 $groupTask.Controls.Add($btnTaskStatus)
 
 $btnTaskRunNow = New-Object System.Windows.Forms.Button
 $btnTaskRunNow.Text = 'Run Now'
-$btnTaskRunNow.Size = New-Object System.Drawing.Size(80, 30)
-$btnTaskRunNow.Location = New-Object System.Drawing.Point(716, 45)
+$btnTaskRunNow.Size = New-Object System.Drawing.Size(90, 30)
+$btnTaskRunNow.Location = New-Object System.Drawing.Point(694, 84)
 $groupTask.Controls.Add($btnTaskRunNow)
 
 $btnTaskRemove = New-Object System.Windows.Forms.Button
 $btnTaskRemove.Text = 'Remove Task'
 $btnTaskRemove.Size = New-Object System.Drawing.Size(110, 28)
-$btnTaskRemove.Location = New-Object System.Drawing.Point(19, 82)
+$btnTaskRemove.Location = New-Object System.Drawing.Point(19, 79)
 $groupTask.Controls.Add($btnTaskRemove)
 
 $chkTaskSchedulerFriendly = New-Object System.Windows.Forms.CheckBox
 $chkTaskSchedulerFriendly.Text = 'Force -SchedulerFriendly for scheduled runs'
 $chkTaskSchedulerFriendly.AutoSize = $true
 $chkTaskSchedulerFriendly.Checked = $true
-$chkTaskSchedulerFriendly.Location = New-Object System.Drawing.Point(140, 86)
+$chkTaskSchedulerFriendly.Location = New-Object System.Drawing.Point(19, 113)
 $groupTask.Controls.Add($chkTaskSchedulerFriendly)
 
 $lblStatus = New-Object System.Windows.Forms.Label
 $lblStatus.AutoSize = $true
-$lblStatus.Location = New-Object System.Drawing.Point(16, 740)
+$lblStatus.Location = New-Object System.Drawing.Point(16, 736)
 $lblStatus.Anchor = 'Left,Bottom'
 $lblStatus.Text = 'Ready'
 $form.Controls.Add($lblStatus)
@@ -556,6 +596,7 @@ function Load-ConfigIntoForm {
 
     $config = Read-ConfigFile -PathValue $PathValue
     Set-FormConfigValues -Config $config
+    Sync-TaskTimesFromExistingTask -Silent
     $script:currentConfigPath = $PathValue
     Update-CurrentFileLabel
     Update-Status "Loaded $PathValue"
@@ -607,6 +648,84 @@ function Update-TaskActionButtons {
     $taskExists = Test-TaskExists -TaskName $taskName
     $btnTaskStatus.Enabled = $taskExists
     $btnTaskRunNow.Enabled = $taskExists
+    $btnTaskRemove.Enabled = $taskExists
+}
+
+function Set-TaskTimesList {
+    param(
+        [string[]]$TimeValues
+    )
+
+    $lstTaskTimes.Items.Clear()
+
+    $normalized = @($TimeValues | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    if ($normalized.Count -eq 0) {
+        [void]$lstTaskTimes.Items.Add('02:00')
+        return
+    }
+
+    foreach ($timeValue in $normalized) {
+        [void]$lstTaskTimes.Items.Add($timeValue)
+    }
+}
+
+function Get-TaskDailyTriggerTimes {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TaskName
+    )
+
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+
+    return @(
+        $task.Triggers |
+            Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskDailyTrigger' } |
+            ForEach-Object {
+                if ($_.StartBoundary) {
+                    try {
+                        ([datetime]$_.StartBoundary).ToString('HH:mm')
+                    }
+                    catch {
+                        $null
+                    }
+                }
+            } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique
+    )
+}
+
+function Sync-TaskTimesFromExistingTask {
+    param(
+        [switch]$Silent
+    )
+
+    $taskName = $txtTaskName.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($taskName)) {
+        return
+    }
+
+    if (-not (Test-TaskExists -TaskName $taskName)) {
+        return
+    }
+
+    try {
+        $taskTimes = Get-TaskDailyTriggerTimes -TaskName $taskName
+        if ($taskTimes.Count -gt 0) {
+            Set-TaskTimesList -TimeValues $taskTimes
+            if (-not $Silent) {
+                Update-Status "Loaded trigger times from task '$taskName'."
+            }
+        }
+        elseif (-not $Silent) {
+            Update-Status "Task '$taskName' has no daily triggers to load."
+        }
+    }
+    catch {
+        if (-not $Silent) {
+            Update-Status "Unable to read triggers from task '$taskName'."
+        }
+    }
 }
 
 function Ensure-ConfigPathForTask {
@@ -661,8 +780,83 @@ function New-TaskAction {
 }
 
 function New-TaskTrigger {
-    $dailyAt = Get-DailyTimeString -TimeValue $dtTaskTime.Value
-    return (New-ScheduledTaskTrigger -Daily -At $dailyAt)
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$DailyTimes
+    )
+
+    return @(
+        $DailyTimes | ForEach-Object {
+            New-ScheduledTaskTrigger -Daily -At $_
+        }
+    )
+}
+
+function Get-TaskTimesFromForm {
+    $timeValues = @(
+        $lstTaskTimes.Items |
+            ForEach-Object { [string]$_ }
+    )
+
+    if ($timeValues.Count -eq 0) {
+        throw 'At least one daily trigger time is required (HH:mm).'
+    }
+
+    $invalid = @($timeValues | Where-Object { -not (Test-DailyTimeString -TimeText $_) })
+    if ($invalid.Count -gt 0) {
+        throw "Invalid time value(s): $($invalid -join ', '). Use 24-hour HH:mm format."
+    }
+
+    return @($timeValues | Sort-Object -Unique)
+}
+
+function Add-TaskTimeFromPicker {
+    $selectedTime = Get-DailyTimeString -TimeValue $dtTaskTime.Value
+    $existing = @(
+        $lstTaskTimes.Items |
+            ForEach-Object { [string]$_ }
+    )
+
+    if ($existing -contains $selectedTime) {
+        return $false
+    }
+
+    [void]$lstTaskTimes.Items.Add($selectedTime)
+    $sorted = @(
+        $lstTaskTimes.Items |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $lstTaskTimes.Items.Clear()
+    foreach ($timeValue in $sorted) {
+        [void]$lstTaskTimes.Items.Add($timeValue)
+    }
+
+    $selectedIndex = $lstTaskTimes.Items.IndexOf($selectedTime)
+    if ($selectedIndex -ge 0) {
+        $lstTaskTimes.SelectedIndex = $selectedIndex
+    }
+
+    return $true
+}
+
+function Remove-SelectedTaskTimes {
+    if ($lstTaskTimes.SelectedItems.Count -eq 0) {
+        return 0
+    }
+
+    $toRemove = @(
+        $lstTaskTimes.SelectedItems |
+            ForEach-Object { [string]$_ }
+    )
+    $removedCount = $toRemove.Count
+
+    foreach ($timeValue in $toRemove) {
+        [void]$lstTaskTimes.Items.Remove($timeValue)
+    }
+
+    return $removedCount
 }
 
 function New-TaskPrincipal {
@@ -680,11 +874,23 @@ function Format-TaskStatusText {
     $taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction Stop
     $nextRun = if ($taskInfo.NextRunTime -and $taskInfo.NextRunTime -ne [datetime]::MinValue) { $taskInfo.NextRunTime } else { 'N/A' }
     $lastRun = if ($taskInfo.LastRunTime -and $taskInfo.LastRunTime -ne [datetime]::MinValue) { $taskInfo.LastRunTime } else { 'N/A' }
+    $dailyTriggerTimes = @(
+        $task.Triggers |
+            Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskDailyTrigger' } |
+            ForEach-Object {
+                if ($_.StartBoundary) {
+                    ([datetime]$_.StartBoundary).ToString('HH:mm')
+                }
+            } |
+            Sort-Object -Unique
+    )
+    $triggerSummary = if ($dailyTriggerTimes.Count -gt 0) { $dailyTriggerTimes -join ', ' } else { 'N/A' }
 
     return @(
         "Task: $TaskName"
         "State: $($task.State)"
         "Enabled: $($task.Settings.Enabled)"
+        "Daily triggers: $triggerSummary"
         "Next run: $nextRun"
         "Last run: $lastRun"
         "Last result: $($taskInfo.LastTaskResult)"
@@ -694,6 +900,8 @@ function Format-TaskStatusText {
 function Start-NewConfig {
     Set-FormConfigValues -Config (New-DefaultConfig)
     $script:currentConfigPath = $null
+    Set-TaskTimesList -TimeValues @('02:00')
+    Sync-TaskTimesFromExistingTask -Silent
     Update-CurrentFileLabel
     Update-Status 'Started a new config (unsaved).'
 }
@@ -870,18 +1078,51 @@ $btnTaskCreateUpdate.Add_Click({
         }
 
         $action = New-TaskAction -ConfigFilePath $configPath -ForceSchedulerFriendly $chkTaskSchedulerFriendly.Checked
-        $trigger = New-TaskTrigger
+        $triggerTimes = Get-TaskTimesFromForm
+        $trigger = New-TaskTrigger -DailyTimes $triggerTimes
         $principal = New-TaskPrincipal
         $description = 'Daily Reaper project backup synchronization.'
 
         Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description $description -Principal $principal -Force | Out-Null
         Update-TaskActionButtons
-        Update-Status "Scheduled task '$taskName' created or updated."
+        Sync-TaskTimesFromExistingTask -Silent
+        Update-Status "Scheduled task '$taskName' created or updated at: $($triggerTimes -join ', ')."
         [System.Windows.Forms.MessageBox]::Show("Task '$taskName' is configured.", 'Task created/updated', 'OK', 'Information') | Out-Null
     }
     catch {
         [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Task create/update error', 'OK', 'Error') | Out-Null
         Update-Status 'Unable to create or update task.'
+    }
+})
+
+$btnTaskAddTime.Add_Click({
+    try {
+        if (Add-TaskTimeFromPicker) {
+            Update-Status 'Added daily trigger time.'
+        }
+        else {
+            Update-Status 'Selected time is already in the trigger list.'
+        }
+    }
+    catch {
+        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Add trigger time error', 'OK', 'Error') | Out-Null
+        Update-Status 'Unable to add trigger time.'
+    }
+})
+
+$btnTaskRemoveTime.Add_Click({
+    try {
+        $removedCount = Remove-SelectedTaskTimes
+        if ($removedCount -gt 0) {
+            Update-Status "Removed $removedCount selected trigger time(s)."
+        }
+        else {
+            Update-Status 'Select one or more time lines to remove.'
+        }
+    }
+    catch {
+        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Remove trigger time error', 'OK', 'Error') | Out-Null
+        Update-Status 'Unable to remove selected trigger time(s).'
     }
 })
 
@@ -936,11 +1177,14 @@ $btnTaskRemove.Add_Click({
 
 $txtTaskName.Add_TextChanged({
     Update-TaskActionButtons
+    Sync-TaskTimesFromExistingTask -Silent
 })
 
 Set-FormConfigValues -Config (New-DefaultConfig)
+Set-TaskTimesList -TimeValues @('02:00')
 Update-CurrentFileLabel
 Update-TaskActionButtons
+Sync-TaskTimesFromExistingTask -Silent
 
 if ($ConfigPath) {
     try {
