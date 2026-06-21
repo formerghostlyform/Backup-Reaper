@@ -42,6 +42,7 @@ Unregister-ScheduledTask -TaskName "Reaper Backup Sync" -Confirm:$false
 ## Script
 
 - `Sync-ReaperBackups.ps1` – Main backup synchronization script
+- `Edit-BackupConfigGui.ps1` – Windows GUI editor for backup config files
 - `backup.config.example.json` – Example configuration file
 
 ## What It Does
@@ -137,6 +138,38 @@ Edit `backup.config.json` to set all parameters once:
   "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log"
 }
 ```
+
+### GUI Config Editor
+
+Use the built-in Windows GUI to create or update your JSON config file:
+
+```powershell
+.\Edit-BackupConfigGui.ps1
+```
+
+Or open an existing config directly:
+
+```powershell
+.\Edit-BackupConfigGui.ps1 -ConfigPath .\backup.config.json
+```
+
+In the editor:
+
+- Use `Open Existing...` to select an existing JSON config file
+- Use `New Config...` to start from defaults and choose where to create a new config file
+- On startup (without `-ConfigPath`), choose whether to open existing or start new
+- Enter one source path per line in `SourcePaths`
+- Enter one destination root per line in `BackupRoots`
+- Use `Add Folder...` buttons for Windows folder-picking in both path lists
+- Toggle switches for `DryRun`, `SchedulerFriendly`, and related options
+- Choose `RobocopyTuning` from the dropdown (`Normal`, `High`, `Higher`)
+- Set `LogPath`, then save to `backup.config.json`
+- Manage an associated scheduled task from the `Scheduled Task` section:
+  - `Create / Update Task` to register a daily task for the selected config
+  - `Force -SchedulerFriendly for scheduled runs` to keep task runs quiet (recommended)
+  - `Task Status` to view current state, run times, and last result
+  - `Run Now` to start the task immediately
+  - `Remove Task` to delete the scheduled task
 
 ### Multiple Backups
 
