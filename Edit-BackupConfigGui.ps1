@@ -698,6 +698,49 @@ function Start-NewConfig {
     Update-Status 'Started a new config (unsaved).'
 }
 
+function Show-StartupWorkflowDialog {
+    $dialog = New-Object System.Windows.Forms.Form
+    $dialog.Text = 'Choose config workflow'
+    $dialog.StartPosition = 'CenterParent'
+    $dialog.FormBorderStyle = 'FixedDialog'
+    $dialog.MaximizeBox = $false
+    $dialog.MinimizeBox = $false
+    $dialog.ShowInTaskbar = $false
+    $dialog.ClientSize = New-Object System.Drawing.Size(380, 132)
+    $dialog.TopMost = $true
+
+    $lblPrompt = New-Object System.Windows.Forms.Label
+    $lblPrompt.AutoSize = $false
+    $lblPrompt.Location = New-Object System.Drawing.Point(16, 16)
+    $lblPrompt.Size = New-Object System.Drawing.Size(348, 44)
+    $lblPrompt.Text = 'Select how you want to begin editing Backup-Reaper config files.'
+    $dialog.Controls.Add($lblPrompt)
+
+    $btnSelectExisting = New-Object System.Windows.Forms.Button
+    $btnSelectExisting.Text = 'Select Existing...'
+    $btnSelectExisting.Size = New-Object System.Drawing.Size(136, 30)
+    $btnSelectExisting.Location = New-Object System.Drawing.Point(78, 76)
+    $btnSelectExisting.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $dialog.Controls.Add($btnSelectExisting)
+
+    $btnNew = New-Object System.Windows.Forms.Button
+    $btnNew.Text = 'New'
+    $btnNew.Size = New-Object System.Drawing.Size(80, 30)
+    $btnNew.Location = New-Object System.Drawing.Point(220, 76)
+    $btnNew.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $dialog.Controls.Add($btnNew)
+
+    $dialog.AcceptButton = $btnSelectExisting
+    $dialog.CancelButton = $btnNew
+
+    try {
+        return $dialog.ShowDialog($form)
+    }
+    finally {
+        $dialog.Dispose()
+    }
+}
+
 $btnLoad.Add_Click({
     try {
         if ($openDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
@@ -910,14 +953,9 @@ if ($ConfigPath) {
     }
 }
 else {
-    $startupChoice = [System.Windows.Forms.MessageBox]::Show(
-        'Select Yes to open an existing config file now, or No to start a new config.',
-        'Choose config workflow',
-        [System.Windows.Forms.MessageBoxButtons]::YesNo,
-        [System.Windows.Forms.MessageBoxIcon]::Question
-    )
+    $startupChoice = Show-StartupWorkflowDialog
 
-    if ($startupChoice -eq [System.Windows.Forms.DialogResult]::Yes) {
+    if ($startupChoice -eq [System.Windows.Forms.DialogResult]::OK) {
         try {
             if ($openDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                 Load-ConfigIntoForm -PathValue $openDialog.FileName
