@@ -584,6 +584,31 @@ function Get-TaskNameValue {
     return $taskName
 }
 
+function Test-TaskExists {
+    param(
+        [string]$TaskName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TaskName)) {
+        return $false
+    }
+
+    try {
+        $null = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Update-TaskActionButtons {
+    $taskName = $txtTaskName.Text.Trim()
+    $taskExists = Test-TaskExists -TaskName $taskName
+    $btnTaskStatus.Enabled = $taskExists
+    $btnTaskRunNow.Enabled = $taskExists
+}
+
 function Ensure-ConfigPathForTask {
     if ($script:currentConfigPath -and (Test-Path -LiteralPath $script:currentConfigPath)) {
         return $script:currentConfigPath
@@ -807,6 +832,7 @@ $btnTaskCreateUpdate.Add_Click({
         $description = 'Daily Reaper project backup synchronization.'
 
         Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description $description -Principal $principal -Force | Out-Null
+        Update-TaskActionButtons
         Update-Status "Scheduled task '$taskName' created or updated."
         [System.Windows.Forms.MessageBox]::Show("Task '$taskName' is configured.", 'Task created/updated', 'OK', 'Information') | Out-Null
     }
@@ -856,6 +882,7 @@ $btnTaskRemove.Add_Click({
         }
 
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
+        Update-TaskActionButtons
         Update-Status "Removed task '$taskName'."
     }
     catch {
@@ -864,8 +891,13 @@ $btnTaskRemove.Add_Click({
     }
 })
 
+$txtTaskName.Add_TextChanged({
+    Update-TaskActionButtons
+})
+
 Set-FormConfigValues -Config (New-DefaultConfig)
 Update-CurrentFileLabel
+Update-TaskActionButtons
 
 if ($ConfigPath) {
     try {
