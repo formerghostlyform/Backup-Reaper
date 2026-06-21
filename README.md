@@ -135,7 +135,8 @@ Edit `backup.config.json` to set all parameters once:
   "SchedulerFriendly": false,
   "SkipPreflightSizeScan": false,
   "RobocopyTuning": "Normal",
-  "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log"
+  "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log",
+  "TaskIdentifier": null
 }
 ```
 
@@ -166,6 +167,7 @@ In the editor:
 - Set `LogPath`, then save to `backup.config.json`
 - Manage an associated scheduled task from the `Scheduled Task` section:
   - `Create / Update Task` to register a daily task for the selected config
+  - The editor stores a stable `TaskIdentifier` in the config and uses it to resolve the matching scheduled task before falling back to the task name
   - Review all configured daily trigger times in the list, use `Add Time` to add from the picker, and `Remove Selected Time` to delete selected entries
   - `Force -SchedulerFriendly for scheduled runs` to keep task runs quiet (recommended)
   - `Task Status` to view current state, run times, and last result

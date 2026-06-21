@@ -42,6 +42,7 @@ function New-DefaultConfig {
         SkipPreflightSizeScan = $false
         RobocopyTuning = 'Normal'
         LogPath = 'C:\Logs\Backup-Reaper\backup.log'
+        TaskIdentifier = $null
     }
 }
 
@@ -85,7 +86,26 @@ function ConvertTo-ConfigObject {
         $result.LogPath = [string]$InputObject.LogPath
     }
 
+    if ($null -ne $InputObject.TaskIdentifier -and [string]$InputObject.TaskIdentifier) {
+        $result.TaskIdentifier = [string]$InputObject.TaskIdentifier
+    }
+
     return $result
+}
+
+function Update-SourcePathsWarning {
+    $paths = Convert-MultilineToArray -Text $txtSourcePaths.Text
+    $leafNames = @($paths | ForEach-Object { Split-Path -Path $_ -Leaf } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $duplicates = @($leafNames | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+
+    if ($duplicates.Count -gt 0) {
+        $lblSourcePathsWarning.Text = "Warning: duplicate folder name(s) '$($duplicates -join "', '")' — these sources will collide under each backup root."
+        $lblSourcePathsWarning.Visible = $true
+    }
+    else {
+        $lblSourcePathsWarning.Text = ''
+        $lblSourcePathsWarning.Visible = $false
+    }
 }
 
 function Convert-MultilineToArray {
@@ -256,6 +276,8 @@ function ConvertTo-JsonConfig {
         [hashtable]$Config
     )
 
+    $taskIdentifier = if ([string]::IsNullOrWhiteSpace([string]$Config.TaskIdentifier)) { $null } else { [string]$Config.TaskIdentifier }
+
     $ordered = [ordered]@{
         SourcePaths = $Config.SourcePaths
         BackupRoots = $Config.BackupRoots
@@ -265,6 +287,7 @@ function ConvertTo-JsonConfig {
         SkipPreflightSizeScan = [bool]$Config.SkipPreflightSizeScan
         RobocopyTuning = [string]$Config.RobocopyTuning
         LogPath = [string]$Config.LogPath
+        TaskIdentifier = $taskIdentifier
     }
 
     return ($ordered | ConvertTo-Json -Depth 5)
@@ -284,6 +307,7 @@ function Set-FormConfigValues {
     $chkSkipPreflightSizeScan.Checked = [bool]$Config.SkipPreflightSizeScan
     $cmbRobocopyTuning.SelectedItem = [string]$Config.RobocopyTuning
     $txtLogPath.Text = [string]$Config.LogPath
+    $script:taskIdentifier = if ($null -ne $Config.TaskIdentifier -and -not [string]::IsNullOrWhiteSpace([string]$Config.TaskIdentifier)) { [string]$Config.TaskIdentifier } else { $null }
 }
 
 function Get-FormConfigValues {
@@ -296,6 +320,7 @@ function Get-FormConfigValues {
         SkipPreflightSizeScan = $chkSkipPreflightSizeScan.Checked
         RobocopyTuning = [string]$cmbRobocopyTuning.SelectedItem
         LogPath = $txtLogPath.Text.Trim()
+        TaskIdentifier = if ([string]::IsNullOrWhiteSpace($script:taskIdentifier)) { $null } else { [string]$script:taskIdentifier }
     }
 
     Validate-ConfigValues -Config $config
@@ -379,9 +404,20 @@ $txtSourcePaths = New-Object System.Windows.Forms.TextBox
 $txtSourcePaths.Multiline = $true
 $txtSourcePaths.ScrollBars = 'Vertical'
 $txtSourcePaths.Location = New-Object System.Drawing.Point(19, 50)
-$txtSourcePaths.Size = New-Object System.Drawing.Size(370, 255)
+$txtSourcePaths.Size = New-Object System.Drawing.Size(370, 228)
 $txtSourcePaths.Anchor = 'Top,Left,Bottom'
 $groupPaths.Controls.Add($txtSourcePaths)
+
+$lblSourcePathsWarning = New-Object System.Windows.Forms.Label
+$lblSourcePathsWarning.AutoSize = $false
+$lblSourcePathsWarning.Size = New-Object System.Drawing.Size(370, 36)
+$lblSourcePathsWarning.Location = New-Object System.Drawing.Point(19, 283)
+$lblSourcePathsWarning.Anchor = 'Bottom,Left'
+$lblSourcePathsWarning.ForeColor = [System.Drawing.Color]::FromArgb(160, 80, 0)
+$lblSourcePathsWarning.Font = New-Object System.Drawing.Font('Segoe UI', 8.25)
+$lblSourcePathsWarning.Text = ''
+$lblSourcePathsWarning.Visible = $false
+$groupPaths.Controls.Add($lblSourcePathsWarning)
 
 $lblBackupRoots = New-Object System.Windows.Forms.Label
 $lblBackupRoots.AutoSize = $true
@@ -470,7 +506,7 @@ $groupOptions.Controls.Add($btnBrowseLog)
 $groupTask = New-Object System.Windows.Forms.GroupBox
 $groupTask.Text = 'Scheduled Task'
 $groupTask.Location = New-Object System.Drawing.Point(16, 566)
-$groupTask.Size = New-Object System.Drawing.Size(812, 160)
+$groupTask.Size = New-Object System.Drawing.Size(812, 240)
 $groupTask.Anchor = 'Left,Right,Bottom'
 $form.Controls.Add($groupTask)
 
@@ -523,19 +559,19 @@ $groupTask.Controls.Add($btnTaskRemoveTime)
 $btnTaskCreateUpdate = New-Object System.Windows.Forms.Button
 $btnTaskCreateUpdate.Text = 'Create / Update Task'
 $btnTaskCreateUpdate.Size = New-Object System.Drawing.Size(145, 30)
-$btnTaskCreateUpdate.Location = New-Object System.Drawing.Point(544, 112)
+$btnTaskCreateUpdate.Location = New-Object System.Drawing.Point(19, 175)
 $groupTask.Controls.Add($btnTaskCreateUpdate)
 
 $btnTaskStatus = New-Object System.Windows.Forms.Button
 $btnTaskStatus.Text = 'Task Status'
 $btnTaskStatus.Size = New-Object System.Drawing.Size(90, 30)
-$btnTaskStatus.Location = New-Object System.Drawing.Point(694, 112)
+$btnTaskStatus.Location = New-Object System.Drawing.Point(169, 175)
 $groupTask.Controls.Add($btnTaskStatus)
 
 $btnTaskRunNow = New-Object System.Windows.Forms.Button
 $btnTaskRunNow.Text = 'Run Now'
 $btnTaskRunNow.Size = New-Object System.Drawing.Size(90, 30)
-$btnTaskRunNow.Location = New-Object System.Drawing.Point(694, 84)
+$btnTaskRunNow.Location = New-Object System.Drawing.Point(265, 175)
 $groupTask.Controls.Add($btnTaskRunNow)
 
 $btnTaskRemove = New-Object System.Windows.Forms.Button
@@ -546,14 +582,15 @@ $groupTask.Controls.Add($btnTaskRemove)
 
 $chkTaskSchedulerFriendly = New-Object System.Windows.Forms.CheckBox
 $chkTaskSchedulerFriendly.Text = 'Force -SchedulerFriendly for scheduled runs'
-$chkTaskSchedulerFriendly.AutoSize = $true
+$chkTaskSchedulerFriendly.AutoSize = $false
+$chkTaskSchedulerFriendly.Size = New-Object System.Drawing.Size(295, 32)
 $chkTaskSchedulerFriendly.Checked = $true
-$chkTaskSchedulerFriendly.Location = New-Object System.Drawing.Point(19, 113)
+$chkTaskSchedulerFriendly.Location = New-Object System.Drawing.Point(19, 112)
 $groupTask.Controls.Add($chkTaskSchedulerFriendly)
 
 $lblStatus = New-Object System.Windows.Forms.Label
 $lblStatus.AutoSize = $true
-$lblStatus.Location = New-Object System.Drawing.Point(16, 736)
+$lblStatus.Location = New-Object System.Drawing.Point(16, 816)
 $lblStatus.Anchor = 'Left,Bottom'
 $lblStatus.Text = 'Ready'
 $form.Controls.Add($lblStatus)
@@ -568,6 +605,7 @@ $saveDialog.Title = 'Save backup config'
 $saveDialog.DefaultExt = 'json'
 
 $script:currentConfigPath = $null
+$script:taskIdentifier = $null
 
 function Update-Status {
     param([string]$Message)
@@ -596,6 +634,16 @@ function Load-ConfigIntoForm {
 
     $config = Read-ConfigFile -PathValue $PathValue
     Set-FormConfigValues -Config $config
+
+    try {
+        $resolvedTask = Resolve-ScheduledTask -TaskName $txtTaskName.Text.Trim() -TaskIdentifier $script:taskIdentifier
+        if ($resolvedTask -and $resolvedTask.TaskName -and $txtTaskName.Text.Trim() -ne $resolvedTask.TaskName) {
+            $txtTaskName.Text = $resolvedTask.TaskName
+        }
+    }
+    catch {
+    }
+
     Sync-TaskTimesFromExistingTask -Silent
     $script:currentConfigPath = $PathValue
     Update-CurrentFileLabel
@@ -625,17 +673,56 @@ function Get-TaskNameValue {
     return $taskName
 }
 
-function Test-TaskExists {
+function Get-OrCreateTaskIdentifier {
+    if ([string]::IsNullOrWhiteSpace($script:taskIdentifier)) {
+        $script:taskIdentifier = ([guid]::NewGuid()).Guid
+    }
+
+    return $script:taskIdentifier
+}
+
+function Resolve-ScheduledTask {
     param(
-        [string]$TaskName
+        [string]$TaskName,
+        [string]$TaskIdentifier
     )
 
-    if ([string]::IsNullOrWhiteSpace($TaskName)) {
+    if (-not [string]::IsNullOrWhiteSpace($TaskIdentifier)) {
+        $escapedIdentifier = [regex]::Escape($TaskIdentifier)
+        $task = Get-ScheduledTask -ErrorAction Stop | Where-Object {
+            $descriptionMatches = -not [string]::IsNullOrWhiteSpace($_.Description) -and $_.Description -match $escapedIdentifier
+            $argumentMatches = @(
+                $_.Actions |
+                    ForEach-Object { [string]$_.Arguments }
+            ) -match $escapedIdentifier
+
+            $descriptionMatches -or $argumentMatches
+        } | Select-Object -First 1
+
+        if ($task) {
+            return $task
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TaskName)) {
+        return (Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop)
+    }
+
+    throw 'Scheduled task was not found.'
+}
+
+function Test-TaskExists {
+    param(
+        [string]$TaskName,
+        [string]$TaskIdentifier
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TaskName) -and [string]::IsNullOrWhiteSpace($TaskIdentifier)) {
         return $false
     }
 
     try {
-        $null = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+        $null = Resolve-ScheduledTask -TaskName $TaskName -TaskIdentifier $TaskIdentifier
         return $true
     }
     catch {
@@ -645,7 +732,7 @@ function Test-TaskExists {
 
 function Update-TaskActionButtons {
     $taskName = $txtTaskName.Text.Trim()
-    $taskExists = Test-TaskExists -TaskName $taskName
+    $taskExists = Test-TaskExists -TaskName $taskName -TaskIdentifier $script:taskIdentifier
     $btnTaskStatus.Enabled = $taskExists
     $btnTaskRunNow.Enabled = $taskExists
     $btnTaskRemove.Enabled = $taskExists
@@ -672,10 +759,12 @@ function Set-TaskTimesList {
 function Get-TaskDailyTriggerTimes {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$TaskName
+        [string]$TaskName,
+
+        [string]$TaskIdentifier
     )
 
-    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+    $task = Resolve-ScheduledTask -TaskName $TaskName -TaskIdentifier $TaskIdentifier
 
     return @(
         $task.Triggers |
@@ -705,12 +794,12 @@ function Sync-TaskTimesFromExistingTask {
         return
     }
 
-    if (-not (Test-TaskExists -TaskName $taskName)) {
+    if (-not (Test-TaskExists -TaskName $taskName -TaskIdentifier $script:taskIdentifier)) {
         return
     }
 
     try {
-        $taskTimes = Get-TaskDailyTriggerTimes -TaskName $taskName
+        $taskTimes = Get-TaskDailyTriggerTimes -TaskName $taskName -TaskIdentifier $script:taskIdentifier
         if ($taskTimes.Count -gt 0) {
             Set-TaskTimesList -TimeValues $taskTimes
             if (-not $Silent) {
@@ -763,6 +852,8 @@ function New-TaskAction {
         [Parameter(Mandatory = $true)]
         [string]$ConfigFilePath,
 
+        [string]$TaskIdentifier,
+
         [bool]$ForceSchedulerFriendly
     )
 
@@ -772,6 +863,9 @@ function New-TaskAction {
     }
 
     $argument = "-NoProfile -ExecutionPolicy Bypass -File `"$syncScriptPath`" -ConfigPath `"$ConfigFilePath`""
+    if (-not [string]::IsNullOrWhiteSpace($TaskIdentifier)) {
+        $argument += " -TaskIdentifier `"$TaskIdentifier`""
+    }
     if ($ForceSchedulerFriendly) {
         $argument += ' -SchedulerFriendly'
     }
@@ -867,11 +961,13 @@ function New-TaskPrincipal {
 function Format-TaskStatusText {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$TaskName
+        [string]$TaskName,
+
+        [string]$TaskIdentifier
     )
 
-    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-    $taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction Stop
+    $task = Resolve-ScheduledTask -TaskName $TaskName -TaskIdentifier $TaskIdentifier
+    $taskInfo = Get-ScheduledTaskInfo -TaskName $task.TaskName -TaskPath $task.TaskPath -ErrorAction Stop
     $nextRun = if ($taskInfo.NextRunTime -and $taskInfo.NextRunTime -ne [datetime]::MinValue) { $taskInfo.NextRunTime } else { 'N/A' }
     $lastRun = if ($taskInfo.LastRunTime -and $taskInfo.LastRunTime -ne [datetime]::MinValue) { $taskInfo.LastRunTime } else { 'N/A' }
     $dailyTriggerTimes = @(
@@ -1077,11 +1173,14 @@ $btnTaskCreateUpdate.Add_Click({
             return
         }
 
-        $action = New-TaskAction -ConfigFilePath $configPath -ForceSchedulerFriendly $chkTaskSchedulerFriendly.Checked
+        $taskIdentifier = Get-OrCreateTaskIdentifier
+        Save-ConfigFromForm -PathValue $configPath
+
+        $action = New-TaskAction -ConfigFilePath $configPath -TaskIdentifier $taskIdentifier -ForceSchedulerFriendly $chkTaskSchedulerFriendly.Checked
         $triggerTimes = Get-TaskTimesFromForm
         $trigger = New-TaskTrigger -DailyTimes $triggerTimes
         $principal = New-TaskPrincipal
-        $description = 'Daily Reaper project backup synchronization.'
+        $description = "Daily Reaper project backup synchronization. TaskIdentifier: $taskIdentifier"
 
         Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description $description -Principal $principal -Force | Out-Null
         Update-TaskActionButtons
@@ -1129,7 +1228,7 @@ $btnTaskRemoveTime.Add_Click({
 $btnTaskStatus.Add_Click({
     try {
         $taskName = Get-TaskNameValue
-        $statusText = Format-TaskStatusText -TaskName $taskName
+        $statusText = Format-TaskStatusText -TaskName $taskName -TaskIdentifier $script:taskIdentifier
         [System.Windows.Forms.MessageBox]::Show($statusText, 'Task status', 'OK', 'Information') | Out-Null
         Update-Status "Loaded status for task '$taskName'."
     }
@@ -1142,8 +1241,9 @@ $btnTaskStatus.Add_Click({
 $btnTaskRunNow.Add_Click({
     try {
         $taskName = Get-TaskNameValue
-        Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
-        Update-Status "Started task '$taskName'."
+        $task = Resolve-ScheduledTask -TaskName $taskName -TaskIdentifier $script:taskIdentifier
+        Start-ScheduledTask -TaskName $task.TaskName -TaskPath $task.TaskPath -ErrorAction Stop
+        Update-Status "Started task '$($task.TaskName)'."
     }
     catch {
         [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Task run error', 'OK', 'Error') | Out-Null
@@ -1154,8 +1254,9 @@ $btnTaskRunNow.Add_Click({
 $btnTaskRemove.Add_Click({
     try {
         $taskName = Get-TaskNameValue
+        $task = Resolve-ScheduledTask -TaskName $taskName -TaskIdentifier $script:taskIdentifier
         $confirm = [System.Windows.Forms.MessageBox]::Show(
-            "Remove scheduled task '$taskName'?",
+            "Remove scheduled task '$($task.TaskName)'?",
             'Confirm task removal',
             [System.Windows.Forms.MessageBoxButtons]::YesNo,
             [System.Windows.Forms.MessageBoxIcon]::Warning
@@ -1165,9 +1266,9 @@ $btnTaskRemove.Add_Click({
             return
         }
 
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
+        Unregister-ScheduledTask -TaskName $task.TaskName -TaskPath $task.TaskPath -Confirm:$false -ErrorAction Stop
         Update-TaskActionButtons
-        Update-Status "Removed task '$taskName'."
+        Update-Status "Removed task '$($task.TaskName)'."
     }
     catch {
         [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Task removal error', 'OK', 'Error') | Out-Null
@@ -1180,11 +1281,16 @@ $txtTaskName.Add_TextChanged({
     Sync-TaskTimesFromExistingTask -Silent
 })
 
+$txtSourcePaths.Add_TextChanged({
+    Update-SourcePathsWarning
+})
+
 Set-FormConfigValues -Config (New-DefaultConfig)
 Set-TaskTimesList -TimeValues @('02:00')
 Update-CurrentFileLabel
 Update-TaskActionButtons
 Sync-TaskTimesFromExistingTask -Silent
+Update-SourcePathsWarning
 
 if ($ConfigPath) {
     try {

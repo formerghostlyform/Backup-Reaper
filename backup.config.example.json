@@ -12,5 +12,6 @@
   "SchedulerFriendly": false,
   "SkipPreflightSizeScan": false,
   "RobocopyTuning": "Normal",
-  "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log"
+  "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log",
+  "TaskIdentifier": "79f45ba5-9473-4b9b-9f9c-9b086bc5e32d"
 }

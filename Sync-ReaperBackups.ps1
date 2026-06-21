@@ -58,6 +58,8 @@ param(
     [ValidateSet('Normal', 'High', 'Higher')]
     [string]$RobocopyTuning = 'Normal',
 
+    [string]$TaskIdentifier,
+
     [string]$LogPath,
 
     [string]$ConfigPath
@@ -427,6 +429,27 @@ $fatalErrorMessage = $null
 try {
     $resolvedSources = foreach ($sourcePath in $SourcePaths) {
         Resolve-ExistingDirectory -Path $sourcePath
+    }
+
+    $leafNames = @($resolvedSources | ForEach-Object { Split-Path -Path $_ -Leaf })
+    $duplicateLeaves = @(
+        $leafNames | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name }
+    )
+
+    if ($duplicateLeaves.Count -gt 0) {
+        $dupeMessage = "Source folder name collision: '$($duplicateLeaves -join "', "')". " +
+            'Multiple source paths share the same folder name and will overwrite each other under each backup root.'
+
+        if ($isSchedulerFriendly) {
+            throw $dupeMessage
+        }
+
+        Write-Warning $dupeMessage
+
+        if (-not $PSCmdlet.ShouldContinue('Continue despite duplicate source folder names?', 'Folder name collision')) {
+            Write-Host 'Backup cancelled.'
+            exit 0
+        }
     }
 
     $preflight = Test-BackupPreflight -SourcePaths $resolvedSources -BackupRoots $BackupRoots -SkipSizeScan:$skipPreflightSizeScan
