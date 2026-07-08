@@ -532,7 +532,7 @@ try {
     )
 
     if ($duplicateLeaves.Count -gt 0) {
-        $dupeMessage = "Source folder name collision: '$($duplicateLeaves -join "', "')". " +
+        $dupeMessage = "Source folder name collision: '$($duplicateLeaves -join "', '")'. " +
             'Multiple source paths share the same folder name and will overwrite each other under each backup root.'
 
         if ($isSchedulerFriendly) {
