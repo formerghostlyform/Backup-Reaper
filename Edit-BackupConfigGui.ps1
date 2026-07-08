@@ -20,7 +20,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if (-not $IsWindows) {
+if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) {
     throw 'This GUI is supported only on Windows.'
 }
 
@@ -109,7 +109,8 @@ function Update-SourcePathsWarning {
     $duplicates = @($leafNames | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
 
     if ($duplicates.Count -gt 0) {
-        $lblSourcePathsWarning.Text = "Warning: duplicate folder name(s) '$($duplicates -join "', '")' — these sources will collide under each backup root."
+        $duplicateList = $duplicates -join "', '"
+        $lblSourcePathsWarning.Text = "Warning: duplicate folder name(s) '$duplicateList' - these sources will collide under each backup root."
         $lblSourcePathsWarning.Visible = $true
     }
     else {
