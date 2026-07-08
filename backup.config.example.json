@@ -11,7 +11,9 @@
   "DryRun": false,
   "SchedulerFriendly": false,
   "SkipPreflightSizeScan": false,
+  "PostValidation": false,
   "RobocopyTuning": "Normal",
   "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log",
+  "LogRetentionDays": 90,
   "TaskIdentifier": "79f45ba5-9473-4b9b-9f9c-9b086bc5e32d"
 }

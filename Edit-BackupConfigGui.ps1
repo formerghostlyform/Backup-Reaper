@@ -40,8 +40,10 @@ function New-DefaultConfig {
         DryRun = $false
         SchedulerFriendly = $false
         SkipPreflightSizeScan = $false
+        PostValidation = $false
         RobocopyTuning = 'Normal'
         LogPath = 'C:\Logs\Backup-Reaper\backup.log'
+        LogRetentionDays = 90
         TaskIdentifier = $null
     }
 }
@@ -78,12 +80,20 @@ function ConvertTo-ConfigObject {
         $result.SkipPreflightSizeScan = [bool]$InputObject.SkipPreflightSizeScan
     }
 
+    if ($null -ne $InputObject.PostValidation) {
+        $result.PostValidation = [bool]$InputObject.PostValidation
+    }
+
     if ($null -ne $InputObject.RobocopyTuning -and [string]$InputObject.RobocopyTuning) {
         $result.RobocopyTuning = [string]$InputObject.RobocopyTuning
     }
 
     if ($null -ne $InputObject.LogPath -and [string]$InputObject.LogPath) {
         $result.LogPath = [string]$InputObject.LogPath
+    }
+
+    if ($null -ne $InputObject.LogRetentionDays) {
+        $result.LogRetentionDays = [int]$InputObject.LogRetentionDays
     }
 
     if ($null -ne $InputObject.TaskIdentifier -and [string]$InputObject.TaskIdentifier) {
@@ -285,8 +295,10 @@ function ConvertTo-JsonConfig {
         DryRun = [bool]$Config.DryRun
         SchedulerFriendly = [bool]$Config.SchedulerFriendly
         SkipPreflightSizeScan = [bool]$Config.SkipPreflightSizeScan
+        PostValidation = [bool]$Config.PostValidation
         RobocopyTuning = [string]$Config.RobocopyTuning
         LogPath = [string]$Config.LogPath
+        LogRetentionDays = [int]$Config.LogRetentionDays
         TaskIdentifier = $taskIdentifier
     }
 
@@ -305,8 +317,10 @@ function Set-FormConfigValues {
     $chkDryRun.Checked = [bool]$Config.DryRun
     $chkSchedulerFriendly.Checked = [bool]$Config.SchedulerFriendly
     $chkSkipPreflightSizeScan.Checked = [bool]$Config.SkipPreflightSizeScan
+    $chkPostValidation.Checked = [bool]$Config.PostValidation
     $cmbRobocopyTuning.SelectedItem = [string]$Config.RobocopyTuning
     $txtLogPath.Text = [string]$Config.LogPath
+    $nudLogRetentionDays.Value = [Math]::Max(0, [int]$Config.LogRetentionDays)
     $script:taskIdentifier = if ($null -ne $Config.TaskIdentifier -and -not [string]::IsNullOrWhiteSpace([string]$Config.TaskIdentifier)) { [string]$Config.TaskIdentifier } else { $null }
 }
 
@@ -318,8 +332,10 @@ function Get-FormConfigValues {
         DryRun = $chkDryRun.Checked
         SchedulerFriendly = $chkSchedulerFriendly.Checked
         SkipPreflightSizeScan = $chkSkipPreflightSizeScan.Checked
+        PostValidation = $chkPostValidation.Checked
         RobocopyTuning = [string]$cmbRobocopyTuning.SelectedItem
         LogPath = $txtLogPath.Text.Trim()
+        LogRetentionDays = [int]$nudLogRetentionDays.Value
         TaskIdentifier = if ([string]::IsNullOrWhiteSpace($script:taskIdentifier)) { $null } else { [string]$script:taskIdentifier }
     }
 
@@ -330,8 +346,8 @@ function Get-FormConfigValues {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Backup-Reaper Config Editor'
 $form.StartPosition = 'CenterScreen'
-$form.Size = New-Object System.Drawing.Size(860, 860)
-$form.MinimumSize = New-Object System.Drawing.Size(760, 800)
+$form.Size = New-Object System.Drawing.Size(860, 886)
+$form.MinimumSize = New-Object System.Drawing.Size(760, 826)
 
 $lblCurrentFile = New-Object System.Windows.Forms.Label
 $lblCurrentFile.AutoSize = $true
@@ -443,7 +459,7 @@ $groupPaths.Controls.Add($txtBackupRoots)
 $groupOptions = New-Object System.Windows.Forms.GroupBox
 $groupOptions.Text = 'Options'
 $groupOptions.Location = New-Object System.Drawing.Point(16, 424)
-$groupOptions.Size = New-Object System.Drawing.Size(812, 134)
+$groupOptions.Size = New-Object System.Drawing.Size(812, 160)
 $groupOptions.Anchor = 'Top,Left,Right'
 $form.Controls.Add($groupOptions)
 
@@ -471,41 +487,61 @@ $chkSkipPreflightSizeScan.Location = New-Object System.Drawing.Point(523, 28)
 $chkSkipPreflightSizeScan.AutoSize = $true
 $groupOptions.Controls.Add($chkSkipPreflightSizeScan)
 
+$chkPostValidation = New-Object System.Windows.Forms.CheckBox
+$chkPostValidation.Text = 'PostValidation'
+$chkPostValidation.Location = New-Object System.Drawing.Point(19, 55)
+$chkPostValidation.AutoSize = $true
+$groupOptions.Controls.Add($chkPostValidation)
+
 $lblTuning = New-Object System.Windows.Forms.Label
 $lblTuning.Text = 'RobocopyTuning'
 $lblTuning.AutoSize = $true
-$lblTuning.Location = New-Object System.Drawing.Point(19, 67)
+$lblTuning.Location = New-Object System.Drawing.Point(19, 94)
 $groupOptions.Controls.Add($lblTuning)
 
 $cmbRobocopyTuning = New-Object System.Windows.Forms.ComboBox
 $cmbRobocopyTuning.DropDownStyle = 'DropDownList'
-$cmbRobocopyTuning.Location = New-Object System.Drawing.Point(19, 88)
+$cmbRobocopyTuning.Location = New-Object System.Drawing.Point(19, 115)
 $cmbRobocopyTuning.Size = New-Object System.Drawing.Size(160, 25)
 $cmbRobocopyTuning.Items.AddRange(@('Normal', 'High', 'Higher'))
 $groupOptions.Controls.Add($cmbRobocopyTuning)
 
+$lblLogRetentionDays = New-Object System.Windows.Forms.Label
+$lblLogRetentionDays.Text = 'Retention (days)'
+$lblLogRetentionDays.AutoSize = $true
+$lblLogRetentionDays.Location = New-Object System.Drawing.Point(200, 94)
+$groupOptions.Controls.Add($lblLogRetentionDays)
+
+$nudLogRetentionDays = New-Object System.Windows.Forms.NumericUpDown
+$nudLogRetentionDays.Location = New-Object System.Drawing.Point(200, 115)
+$nudLogRetentionDays.Size = New-Object System.Drawing.Size(90, 25)
+$nudLogRetentionDays.Minimum = 0
+$nudLogRetentionDays.Maximum = 3650
+$nudLogRetentionDays.Value = 90
+$groupOptions.Controls.Add($nudLogRetentionDays)
+
 $lblLogPath = New-Object System.Windows.Forms.Label
 $lblLogPath.Text = 'LogPath'
 $lblLogPath.AutoSize = $true
-$lblLogPath.Location = New-Object System.Drawing.Point(208, 67)
+$lblLogPath.Location = New-Object System.Drawing.Point(308, 94)
 $groupOptions.Controls.Add($lblLogPath)
 
 $txtLogPath = New-Object System.Windows.Forms.TextBox
-$txtLogPath.Location = New-Object System.Drawing.Point(211, 88)
-$txtLogPath.Size = New-Object System.Drawing.Size(491, 25)
+$txtLogPath.Location = New-Object System.Drawing.Point(308, 115)
+$txtLogPath.Size = New-Object System.Drawing.Size(394, 25)
 $txtLogPath.Anchor = 'Top,Left,Right'
 $groupOptions.Controls.Add($txtLogPath)
 
 $btnBrowseLog = New-Object System.Windows.Forms.Button
 $btnBrowseLog.Text = 'Browse...'
 $btnBrowseLog.Size = New-Object System.Drawing.Size(88, 27)
-$btnBrowseLog.Location = New-Object System.Drawing.Point(708, 87)
+$btnBrowseLog.Location = New-Object System.Drawing.Point(708, 114)
 $btnBrowseLog.Anchor = 'Top,Right'
 $groupOptions.Controls.Add($btnBrowseLog)
 
 $groupTask = New-Object System.Windows.Forms.GroupBox
 $groupTask.Text = 'Scheduled Task'
-$groupTask.Location = New-Object System.Drawing.Point(16, 566)
+$groupTask.Location = New-Object System.Drawing.Point(16, 592)
 $groupTask.Size = New-Object System.Drawing.Size(812, 240)
 $groupTask.Anchor = 'Left,Right,Bottom'
 $form.Controls.Add($groupTask)
@@ -590,7 +626,7 @@ $groupTask.Controls.Add($chkTaskSchedulerFriendly)
 
 $lblStatus = New-Object System.Windows.Forms.Label
 $lblStatus.AutoSize = $true
-$lblStatus.Location = New-Object System.Drawing.Point(16, 816)
+$lblStatus.Location = New-Object System.Drawing.Point(16, 842)
 $lblStatus.Anchor = 'Left,Bottom'
 $lblStatus.Text = 'Ready'
 $form.Controls.Add($lblStatus)

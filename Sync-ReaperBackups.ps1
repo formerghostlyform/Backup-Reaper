@@ -55,12 +55,16 @@ param(
 
     [switch]$SkipPreflightSizeScan,
 
+    [switch]$PostValidation,
+
     [ValidateSet('Normal', 'High', 'Higher')]
     [string]$RobocopyTuning = 'Normal',
 
     [string]$TaskIdentifier,
 
     [string]$LogPath,
+
+    [int]$LogRetentionDays = 90,
 
     [string]$ConfigPath
 )
@@ -122,12 +126,20 @@ if ($ConfigPath) {
         $SkipPreflightSizeScan = [bool]$config.SkipPreflightSizeScan
     }
 
+    if (-not $PSBoundParameters.ContainsKey('PostValidation') -and $null -ne $config.PostValidation) {
+        $PostValidation = [bool]$config.PostValidation
+    }
+
     if (-not $PSBoundParameters.ContainsKey('RobocopyTuning') -and $config.RobocopyTuning) {
         $RobocopyTuning = [string]$config.RobocopyTuning
     }
 
     if (-not $LogPath -and $config.LogPath) {
         $LogPath = [string]$config.LogPath
+    }
+
+    if (-not $PSBoundParameters.ContainsKey('LogRetentionDays') -and $null -ne $config.LogRetentionDays) {
+        $LogRetentionDays = [int]$config.LogRetentionDays
     }
 }
 
@@ -142,6 +154,7 @@ if (-not $BackupRoots -or $BackupRoots.Count -eq 0) {
 $isDryRun = $DryRun -or $WhatIfPreference
 $isSchedulerFriendly = $SchedulerFriendly
 $skipPreflightSizeScan = $SkipPreflightSizeScan
+$isPostValidation = [bool]$PostValidation
 
 function Resolve-ExistingDirectory {
     param(
@@ -328,6 +341,84 @@ function Send-WindowsNotification {
     }
 }
 
+function Invoke-LogPrune {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [int]$RetentionDays
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $cutoff = (Get-Date).Date.AddDays(-$RetentionDays)
+    $timestampPattern = '^\[(\d{4}-\d{2}-\d{2}) '
+    $lines = [System.IO.File]::ReadAllLines($Path, [System.Text.UTF8Encoding]::new($false))
+    $kept = [System.Collections.Generic.List[string]]::new()
+    $pruned = 0
+
+    foreach ($line in $lines) {
+        $match = [regex]::Match($line, $timestampPattern)
+        if ($match.Success) {
+            $lineDate = [datetime]::MinValue
+            if ([datetime]::TryParseExact(
+                    $match.Groups[1].Value,
+                    'yyyy-MM-dd',
+                    [System.Globalization.CultureInfo]::InvariantCulture,
+                    [System.Globalization.DateTimeStyles]::None,
+                    [ref]$lineDate) -and $lineDate -lt $cutoff) {
+                $pruned++
+                continue
+            }
+        }
+        $kept.Add($line)
+    }
+
+    if ($pruned -gt 0) {
+        [System.IO.File]::WriteAllLines($Path, $kept.ToArray(), [System.Text.UTF8Encoding]::new($false))
+    }
+}
+
+function Invoke-PostValidation {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath
+    )
+
+    $sourceFiles = Get-ChildItem -LiteralPath $SourcePath -Force -File -Recurse -ErrorAction Stop
+    $sourceCount = $sourceFiles.Count
+    $sourceBytes = ($sourceFiles | Measure-Object -Property Length -Sum).Sum
+
+    $destFiles = Get-ChildItem -LiteralPath $DestinationPath -Force -File -Recurse -ErrorAction Stop
+    $destCount = $destFiles.Count
+    $destBytes = ($destFiles | Measure-Object -Property Length -Sum).Sum
+
+    $issues = [System.Collections.Generic.List[string]]::new()
+
+    if ($destCount -ne $sourceCount) {
+        $issues.Add("file count mismatch: source has $sourceCount file(s), destination has $destCount")
+    }
+
+    if ($destBytes -ne $sourceBytes) {
+        $issues.Add("total size mismatch: source is $(Format-Size -Bytes $sourceBytes), destination is $(Format-Size -Bytes $destBytes)")
+    }
+
+    return [pscustomobject]@{
+        Passed               = $issues.Count -eq 0
+        Issues               = $issues.ToArray()
+        SourceFileCount      = $sourceCount
+        DestinationFileCount = $destCount
+        SourceBytes          = $sourceBytes
+        DestinationBytes     = $destBytes
+    }
+}
+
 function Write-LogEntry {
     param(
         [Parameter(Mandatory = $true)]
@@ -416,6 +507,10 @@ if ($LogPath) {
         Ensure-Directory -Path $logDirectory
     }
 
+    if ($LogRetentionDays -gt 0) {
+        Invoke-LogPrune -Path $LogPath -RetentionDays $LogRetentionDays
+    }
+
     $logWriter = [System.IO.StreamWriter]::new($LogPath, $true, [System.Text.UTF8Encoding]::new($false))
     $logWriter.AutoFlush = $true
 }
@@ -495,6 +590,26 @@ try {
             try {
                 $null = Invoke-RobocopySync -SourcePath $sourcePath -DestinationPath $destinationPath -PreserveTargetOnlyFiles:$PreserveTargetOnlyFiles -RobocopyTuning $RobocopyTuning
                 $jobSucceeded = $true
+
+                if ($isPostValidation) {
+                    $validation = Invoke-PostValidation -SourcePath $sourcePath -DestinationPath $destinationPath
+                    if ($validation.Passed) {
+                        $validationMsg = "Post-validation passed for '$destinationPath': $($validation.DestinationFileCount) file(s), $(Format-Size -Bytes $validation.DestinationBytes)."
+                        Write-LogEntry -Message $validationMsg
+                        if (-not $isSchedulerFriendly) {
+                            Write-Host $validationMsg
+                        }
+                    }
+                    else {
+                        $validationFailMsg = "Post-validation failed for '$destinationPath': $($validation.Issues -join '; ')."
+                        $jobFailureMessages.Add($validationFailMsg)
+                        $jobSucceeded = $false
+                        Write-LogEntry -Message $validationFailMsg -Level 'WARN'
+                        if (-not $isSchedulerFriendly) {
+                            Write-Warning $validationFailMsg
+                        }
+                    }
+                }
             }
             catch {
                 $failureMessage = "Failed '$sourcePath' to '$destinationPath': $($_.Exception.Message)"
