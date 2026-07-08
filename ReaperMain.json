@@ -1,0 +1,19 @@
+{
+  "SourcePaths": [
+    "F:\\REAPER Media",
+    "C:\\Users\\deadheaphonist\\AppData\\Roaming\\REAPER"
+  ],
+  "BackupRoots": [
+    "H:\\ReaperBackups",
+    "Y:\\ReaperBackups"
+  ],
+  "PreserveTargetOnlyFiles": false,
+  "DryRun": false,
+  "SchedulerFriendly": true,
+  "SkipPreflightSizeScan": false,
+  "PostValidation": true,
+  "RobocopyTuning": "Normal",
+  "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log",
+  "LogRetentionDays": 90,
+  "TaskIdentifier": "11a99028-7162-4378-9208-9ce3f6fcfc0a"
+}
