@@ -98,6 +98,11 @@ function Read-BackupConfiguration {
     return $config
 }
 
+if ($PSBoundParameters.Count -eq 0) {
+    Get-Help $MyInvocation.MyCommand.Path
+    exit 0
+}
+
 if ($ConfigPath) {
     $ConfigPath = Resolve-ConfigPath -Path $ConfigPath
     $config = Read-BackupConfiguration -Path $ConfigPath
