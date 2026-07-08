@@ -1,6 +1,6 @@
 # Backup-Reaper
 
-PowerShell script to synchronize Reaper project and data directories to one or more backup locations using Robocopy, with optional pre-flight checks, scheduler-friendly quiet mode, and configurable tuning.
+PowerShell script to synchronize Reaper project and data directories to one or more backup locations using Robocopy, with optional pre-flight checks, post-sync validation, automatic log pruning, scheduler-friendly quiet mode, and configurable tuning.
 
 ## Quick Start
 
@@ -53,7 +53,9 @@ Unregister-ScheduledTask -TaskName "Reaper Backup Sync" -Confirm:$false
 - By default, creates an exact mirror of the source (deletes files that no longer exist in source)
 - Optionally preserves files that exist only in the backup
 - Writes timestamped logs with optional severity levels
+- **Prunes log entries older than a configurable retention window** (default: 90 days)
 - Sends Windows notifications on completion (success, partial failure, or fatal error)
+- **Optionally validates each backup destination after sync** (file count and total size comparison)
 - Returns clear exit codes for scripting and task scheduler monitoring
 
 ## Pre-Flight Checks
@@ -82,6 +84,8 @@ Set via `-RobocopyTuning` parameter or in the config file. Use `Higher` for back
 - **Path validation**: Resolves all paths before any copy operations begin
 - **Directory creation**: Creates destination directories as needed (unless in dry-run mode)
 - **Atomic writes**: Robocopy handles file copying with retries and graceful failure handling
+- **Post-sync validation**: Optionally compares file count and total byte size between source and destination after each job; mismatches are logged and trigger exit code 2
+- **Log pruning**: Automatically removes log entries older than the configured retention window at the start of each run, keeping the log file from growing indefinitely
 - **Comprehensive logging**: Per-job, per-failure, and final outcome logged with timestamps
 - **Scheduler-safe**: Fully suppresses console output and notifications when `-SchedulerFriendly` is set
 - **Exit codes**: Returns 0 for success, 1 for fatal errors, 2 for partial failures
@@ -134,8 +138,10 @@ Edit `backup.config.json` to set all parameters once:
   "DryRun": false,
   "SchedulerFriendly": false,
   "SkipPreflightSizeScan": false,
+  "PostValidation": false,
   "RobocopyTuning": "Normal",
   "LogPath": "C:\\Logs\\Backup-Reaper\\backup.log",
+  "LogRetentionDays": 90,
   "TaskIdentifier": null
 }
 ```
@@ -229,6 +235,38 @@ When you trust your destination capacity, skip the source size calculation:
 .\Sync-ReaperBackups.ps1 -ConfigPath .\backup.config.json -SkipPreflightSizeScan
 ```
 
+### Post-Sync Validation
+
+After each Robocopy job completes, compare the file count and total byte size of the source against the destination. Any mismatch is reported as a warning, logged, and causes exit code 2:
+
+```powershell
+.\Sync-ReaperBackups.ps1 -ConfigPath .\backup.config.json -PostValidation
+```
+
+Enable permanently via the config file:
+
+```json
+"PostValidation": true
+```
+
+In the GUI editor, toggle the **PostValidation** checkbox in the Options section.
+
+### Log Pruning
+
+The log file is pruned automatically at the start of each run. By default, entries older than 90 days are removed. Configure the window via the config file:
+
+```json
+"LogRetentionDays": 90
+```
+
+Or override at runtime:
+
+```powershell
+.\Sync-ReaperBackups.ps1 -ConfigPath .\backup.config.json -LogRetentionDays 30
+```
+
+Set `LogRetentionDays` to `0` to disable pruning entirely. In the GUI editor, adjust the **Retention (days)** spinner next to the log path.
+
 ### Show Help
 
 ```powershell
@@ -248,7 +286,8 @@ When `-SchedulerFriendly` is set, all output and error messages are suppressed f
 - Running as Administrator may improve consistency when source directories contain open files, as some metadata is preserved more reliably
 - Pre-flight checks are always run unless `-SkipPreflightSizeScan` is set
 - The script uses Robocopy's `/MIR` (mirror) by default, which deletes destination files not in the source; use `-PreserveTargetOnlyFiles` to change this behavior
-- Log files grow over time; consider rotating them externally or using a log archive tool
+- Log entries older than `LogRetentionDays` (default 90) are automatically pruned at the start of each run; set to `0` to disable
+- Post-sync validation checks file count and total byte size only — it does not compare individual file contents
 - For very large Reaper libraries (100+ GB), consider using `-RobocopyTuning Higher` and `-SkipPreflightSizeScan` for faster execution
 
 ## Additional Links
