@@ -309,7 +309,7 @@ function Send-WindowsNotification {
         [string]$Message
     )
 
-    if (-not $IsWindows) {
+    if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) {
         return
     }
 
